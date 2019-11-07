@@ -10,10 +10,10 @@
 #define TIMEOUT 15000
 #define MIN_DISTANCE 700
 #define MAX_SPEED 100
-#define FULL_LEFT 900
-#define FULL_RIGHT 900
-#define UTURN 1800
-#define ONE_CELL 2500
+#define FULL_LEFT 870
+#define FULL_RIGHT 870
+#define UTURN 1820
+#define ONE_CELL 2250
 #define AVOID_WALL 60
 //
 #define MAX 150
