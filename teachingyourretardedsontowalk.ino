@@ -14,7 +14,7 @@
 #define MAX_SPEED 150
 #define FULL_LEFT 475
 #define FULL_RIGHT 475
-#define UTURN 950
+#define UTURN 990
 #define ONE_CELL 1300
 #define AVOID_WALL 40
 
@@ -33,10 +33,6 @@ MeDCMotor motor2(M2); //Left backwards
 MeBuzzer buzzer;
 MeLineFollower lineFinder(PORT_2);
 
-
-int colorArr[3] = {0};
-int whiteArr[3] = {360, 232, 266};
-int blackArr[3] = {314, 202, 229};
 double inputLeft, inputRight;
 int sensorState;
 
@@ -63,7 +59,7 @@ void loop() {
   }
   
   if(ultrasonic() <= MIN_ULTRASONIC){
-    moveBackward(4*AVOID_WALL);
+    moveBackward(6*AVOID_WALL);
     if(inputLeft < inputRight){
       turnRight(2*AVOID_WALL);
     } else if(inputRight <= inputLeft){
@@ -137,7 +133,7 @@ void colorChallenge() {
     led.setColor( (i==0) ? MAX : 0, (i==1) ? MAX : 0 , (i==2) ? MAX : 0);
     led.show();
     delay(DELAY_TIME);
-    colorArr[i] = (lightSensor.read() - blackArr[i])*255/(whiteArr[i]-blackArr[i]);
+    colorArr[i] = lightSensor.read();
   }
   led.setColor(0,0,0);
   led.show();
@@ -155,21 +151,23 @@ void colorChallenge() {
   //        Y for yellow,
   //        P for purple.
   //        $ for error.
- if (b>200) {
-    if (g>240) color = 'B';
-    else color = 'P';
-  }
-  else if (r>240) {
-    if (g>240 && b>100) color = 'Y';
-    else color = 'R';
-  }
-  else if (g>200) {
-     color = 'G';
-  }
-  else if (r<110 && g<110 && b<110)
-    color = 'X';
-  else 
+  if (r+g+b>500*3) {
     color = '$';
+  } else if (r>300 && b<210) {
+    if (g>180 && b<210 && r>360)
+      color = 'Y';
+    else if (g<=160)
+      color = 'R';
+  } else if (r>=240) {
+    if (g>190 && b>238)
+      color = 'B';
+    else if (g>160 && b<200)
+      color = 'G';
+    else
+      color = 'P';
+  } else {
+    color = 'X';
+  }
   
   // INSTRUCTIONS FOR EACH COLOR
   switch(color){
@@ -181,30 +179,38 @@ void colorChallenge() {
       break;
     case 'B':
       turnRight(FULL_RIGHT);
-      moveForward(ONE_CELL);
+      while(ultrasonic() > 9.5)
+        moveForward(AVOID_WALL);
       turnRight(FULL_RIGHT);
       break;
     case 'Y':
       inputLeft = analogRead(LEFT_IR);
       inputRight = analogRead(RIGHT_IR); 
-      if(inputLeft < inputRight)
+      if(inputLeft <= inputRight)
         turnRight(UTURN);
-      else if(inputRight <= inputLeft)
+      else if(inputLeft > inputRight)
         turnLeft(UTURN);
       break;
     case 'P':
       turnLeft(FULL_LEFT);
-      moveForward(ONE_CELL);
+      while(ultrasonic() > 9.5)
+        moveForward(AVOID_WALL);
       turnLeft(FULL_LEFT);
       break;
     case 'X':
-      soundChallenge();
+      buzzer.tone(400, 200);
+      delay(400);
+      buzzer.tone(400, 200);
+      delay(400);
+      buzzer.tone(400, 200);
+      delay(400);
+      soundChallenge();  
       break;
     case '$':
       motor1.stop();
       motor2.stop();
       buzzer.tone(2000, 200);
-      delay(2000);
+      delay(1000);
       break;
   }
 }
@@ -222,13 +228,13 @@ void soundChallenge() {
   lowVal /= 10;
   highVal /= 10;
   
-  if( highVal >= 100){ // for high freq
-    turnRight(FULL_RIGHT);
-  }
-  else if ( lowVal >= 500 && highVal < 100) { // for low freq
+  if (lowVal >= 500){ // for low freq
     turnLeft(FULL_LEFT);
+  }
+  else if(highVal >= 100) { // for high freq
+    turnRight(FULL_RIGHT);
   } 
-  else if (lowVal < 500 && highVal < 100) { //no sound signal detected
+  else { //no sound signal detected
     victory();
   }
 }
