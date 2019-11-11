@@ -4,32 +4,28 @@
 #define LEFT_IR A2
 #define RIGHT_IR A3
 #define ULTRASONIC 12
-#define LOW_PIN A0
-#define HIGH_PIN A1
+#define LOW_PIN A1
+#define HIGH_PIN A0
 
 #define TIMEOUT 15000
+
+#define MIN_ULTRASONIC 8
 #define MIN_DISTANCE 700
-#define MAX_SPEED 100
-#define FULL_LEFT 870
-#define FULL_RIGHT 870
-#define UTURN 1820
-#define ONE_CELL 2250
-#define AVOID_WALL 60
-//
-#define MAX 150
+#define MAX_SPEED 150
+#define FULL_LEFT 475
+#define FULL_RIGHT 475
+#define UTURN 950
+#define ONE_CELL 1300
+#define AVOID_WALL 40
+
+#define MAX 255
 #define DELAY_TIME 500
 #define NUM_READINGS 3
-#define TOL 30
 
-void measureRGBraw(int []);
-void printArr (int []);
-char determineColor (int []);
-void colorCommand (char);
 
 // Initialize sensors
 MeLightSensor lightSensor(PORT_6);
 MeRGBLed led(0,30);
-
 
 // Initialize both motors
 MeDCMotor motor1(M1); //Right forwards
@@ -37,10 +33,12 @@ MeDCMotor motor2(M2); //Left backwards
 MeBuzzer buzzer;
 MeLineFollower lineFinder(PORT_2);
 
+
 int colorArr[3] = {0};
+int whiteArr[3] = {360, 232, 266};
+int blackArr[3] = {314, 202, 229};
 double inputLeft, inputRight;
 int sensorState;
-char inputColour;
 
 void setup() {
   Serial.begin(9600);
@@ -53,40 +51,38 @@ void setup() {
 
 void loop() {
   delay(40);
-  Serial.println(analogRead(RIGHT_IR));
   inputLeft = analogRead(LEFT_IR);
   inputRight = analogRead(RIGHT_IR); 
-
   //
   sensorState = lineFinder.readSensors();
   if (sensorState != S1_OUT_S2_OUT){
     motor1.stop();
     motor2.stop();
+    moveBackward(AVOID_WALL);
     colorChallenge();
   }
   
-  if( ultrasonic() <= 7){
+  if(ultrasonic() <= MIN_ULTRASONIC){
+    moveBackward(4*AVOID_WALL);
     if(inputLeft < inputRight){
-      turnRight(UTURN);
+      turnRight(2*AVOID_WALL);
     } else if(inputRight <= inputLeft){
-      turnLeft(UTURN);
+      turnLeft(2*AVOID_WALL);
     }
   }
-  if(inputRight <= 700 && inputRight > 150){
+  if(inputRight <= MIN_DISTANCE && inputRight > 150){
     turnLeft(AVOID_WALL);    
-  }else if(inputLeft <= 700 && inputLeft > 150){
+  }else if(inputLeft <= MIN_DISTANCE && inputLeft > 150){
     turnRight(AVOID_WALL);
   }else{
     moveForward();
   }
 }
-
 // moves the mBot forward
 void moveForward(){
  motor1.run(MAX_SPEED);
  motor2.run(-MAX_SPEED);
 }
-
 // moves mBot forward for time t
 void moveForward(int t){
   motor1.run(MAX_SPEED);
@@ -95,40 +91,88 @@ void moveForward(int t){
   motor1.stop();
   motor2.stop();
 }
-
+// moves the mBot backward
+void moveBackward(int t){
+ motor1.run(-MAX_SPEED);
+ motor2.run(MAX_SPEED);
+ delay(t);
+  motor1.stop();
+  motor2.stop();
+}
 // turns the mBot left
 void turnLeft(int t){
  motor1.run(MAX_SPEED);
  motor2.run(MAX_SPEED);
  delay(t);
+ motor1.stop();
+ motor2.stop();
 }
-
 // turns the mBot right
 void turnRight(int t){
  motor1.run(-MAX_SPEED);
  motor2.run(-MAX_SPEED);
  delay(t);
+ motor1.stop();
+ motor2.stop();
 }
-
 //returns distance in cm
 long ultrasonic() {
   pinMode(ULTRASONIC, OUTPUT);
-
   digitalWrite(ULTRASONIC, LOW);
   delayMicroseconds(2);
   digitalWrite(ULTRASONIC, HIGH);
   delayMicroseconds(2);
   digitalWrite(ULTRASONIC, LOW);
-
   pinMode(ULTRASONIC, INPUT);
-
   // empirically derived
   return pulseIn(ULTRASONIC, HIGH, TIMEOUT)/ 2 / 28.89;  
 }
+void colorChallenge() {
+  int colorArr[3];
+  int r, g, b;
+  char color;
 
-void colorChallenge(){
-  measureRGBraw(colorArr);
-  switch(determineColor(colorArr)){
+  for (int i=0; i<3; i++) colorArr[i] = 0;
+  for (int i=0; i<3; i++) {
+    led.setColor( (i==0) ? MAX : 0, (i==1) ? MAX : 0 , (i==2) ? MAX : 0);
+    led.show();
+    delay(DELAY_TIME);
+    colorArr[i] = (lightSensor.read() - blackArr[i])*255/(whiteArr[i]-blackArr[i]);
+  }
+  led.setColor(0,0,0);
+  led.show();
+
+  r = colorArr[0],
+  g = colorArr[1],
+  b = colorArr[2];
+      
+  // Conditionals to determine color
+  // Return 0 for no color detected,
+  //        X for black,
+  //        R for red,
+  //        G for green,
+  //        B for blue,
+  //        Y for yellow,
+  //        P for purple.
+  //        $ for error.
+ if (b>200) {
+    if (g>240) color = 'B';
+    else color = 'P';
+  }
+  else if (r>240) {
+    if (g>240 && b>100) color = 'Y';
+    else color = 'R';
+  }
+  else if (g>200) {
+     color = 'G';
+  }
+  else if (r<110 && g<110 && b<110)
+    color = 'X';
+  else 
+    color = '$';
+  
+  // INSTRUCTIONS FOR EACH COLOR
+  switch(color){
     case 'R':
       turnLeft(FULL_LEFT);
       break;
@@ -141,7 +185,12 @@ void colorChallenge(){
       turnRight(FULL_RIGHT);
       break;
     case 'Y':
-      turnRight(UTURN);
+      inputLeft = analogRead(LEFT_IR);
+      inputRight = analogRead(RIGHT_IR); 
+      if(inputLeft < inputRight)
+        turnRight(UTURN);
+      else if(inputRight <= inputLeft)
+        turnLeft(UTURN);
       break;
     case 'P':
       turnLeft(FULL_LEFT);
@@ -149,10 +198,7 @@ void colorChallenge(){
       turnLeft(FULL_LEFT);
       break;
     case 'X':
-      buzzer.tone(200, 200); //BUZZ a TUNE
-      motor1.stop();
-      motor2.stop();
-      delay(2000);
+      soundChallenge();
       break;
     case '$':
       motor1.stop();
@@ -163,103 +209,85 @@ void colorChallenge(){
   }
 }
 
-void measureRGBraw(int colorArr[]) {
-  for (int i=0; i<NUM_READINGS; i++) {
-    // RED LED
-    led.setColor(MAX, 0, 0);
-    led.show();
-  
-    delay(DELAY_TIME);
-  
-    colorArr[0] += lightSensor.read();
-  
-    // GREEN LED
-    led.setColorAt(0, 0, MAX, 0);
-    led.setColorAt(1, 0, MAX, 0);
-    led.show();
-  
-    delay(DELAY_TIME);
-  
-    colorArr[1] += lightSensor.read();
-  
-    // BLUE LED
-    led.setColorAt(0, 0, 0, MAX);
-    led.setColorAt(1, 0, 0, MAX);
-    led.show();
-  
-    delay(DELAY_TIME);
-   
-    colorArr[2] += lightSensor.read();
-    
-  }
-    led.setColorAt(0,0,0,0);
-    led.setColorAt(1,0,0,0);
-    led.show();
-    
-    colorArr[0]/=NUM_READINGS;
-    colorArr[1]/=NUM_READINGS;
-    colorArr[2]/=NUM_READINGS;
-    
-}
 
-// Return 0 for no color detected,
-//        X for black,
-//        R for red,
-//        G for green,
-//        B for blue,
-//        Y for yellow,
-//        P for purple.
-//        $ for error.
-char determineColor(int colorArr[]) {
-  int avg = (colorArr[0]+colorArr[1]+colorArr[2])/3;
-  int r = colorArr[0]-avg,
-      g = colorArr[1]-avg,
-      b = colorArr[2]-avg;
-
-  if (avg>800) return '0';
-  else if (avg<250) return 'X';
-  else if (173-TOL<r && -80-TOL<g && g<-80+TOL && -21-TOL<b && b<-21+TOL) return 'R';
-  else if (19-TOL<r  && r<19+TOL  && 5-TOL<g   && g<5+TOL   && -23-TOL<b  && b<-23+TOL  ) 
-    return 'G';
-  else if (8-TOL<r   && r<8+TOL   && -19-TOL<g && g<-19+TOL && 12-TOL<b   && b<12+TOL   ) 
-    return 'B';
-  else if (134-TOL<r && r<134+TOL && -29-TOL<g && g<-36+TOL && -105-TOL<b && b<-105+TOL ) 
-    return 'Y';
-  else if (61-TOL<r  && r<61+TOL  && -62-TOL<g && g<-62+TOL && -TOL<b     && b<+TOL     ) 
-    return 'P';
-  else {
-    return '$';
-  }
-
-  colorArr[0] = 0;
-  colorArr[1] = 0;
-  colorArr[2] = 0;  
-}
-
-int soundCheck() {
+void soundChallenge() {
   long lowVal, highVal = 0;
-  for(int i=0; i<5; i++){
+  
+  // sample 10 times in 500ms, then take the average value
+  for(int i=0; i<10; i++){
     lowVal += analogRead(LOW_PIN);
     highVal += analogRead(HIGH_PIN);
     delay(50);
   }
-  lowVal /= 5;
-  highVal /= 5;
+  lowVal /= 10;
+  highVal /= 10;
   
-  if( highVal > 1){ // for high freq
+  if( highVal >= 100){ // for high freq
     turnRight(FULL_RIGHT);
   }
-  else if ( lowVal > 1 && highVal < 1) { // for low freq
+  else if ( lowVal >= 500 && highVal < 100) { // for low freq
     turnLeft(FULL_LEFT);
   } 
-  else if (lowVal < 1 && highVal < 1) { //no sound signal detected
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
-    buzzer.tone(200, 200);
+  else if (lowVal < 500 && highVal < 100) { //no sound signal detected
+    victory();
   }
+}
+
+#define NOTE_DS5 622
+#define NOTE_F5 698
+#define NOTE_FS5 740
+#define NOTE_G5 784
+#define NOTE_GS5 831 
+#define NOTE_A5 880
+#define NOTE_AS5 932
+#define NOTE_B5 988
+#define NOTE_C6 1047
+#define NOTE_D6 1175
+#define NOTE_E6 1319
+
+void victory(){ // Thomas the Tank Engine Theme Song
+ int melody[] = {
+    NOTE_G5, NOTE_A5, NOTE_B5, NOTE_C6,
+    NOTE_D6, NOTE_E6,
+    NOTE_GS5, 0, 
+    NOTE_A5, NOTE_F5, NOTE_A5, NOTE_G5, 0,
+    NOTE_GS5, NOTE_A5, NOTE_F5, NOTE_F5, NOTE_A5, NOTE_G5,
+    NOTE_FS5, NOTE_G5, NOTE_FS5, NOTE_G5, NOTE_FS5,
+    NOTE_G5, NOTE_G5, 0,
+    NOTE_FS5, NOTE_G5, NOTE_FS5, NOTE_G5,
+    NOTE_GS5, NOTE_GS5,
+    0, NOTE_DS5, NOTE_DS5, NOTE_F5, NOTE_FS5,
+    NOTE_G5, NOTE_AS5,
+    NOTE_F5, NOTE_G5,
+    NOTE_GS5, 0    
+ };
+ int noteDurations[] = {// measured in semiquavers
+    4, 4, 4, 8,
+    4, 8,
+    8, 24,
+    4, 4, 4, 8, 10,
+    2, 4, 4, 4, 2, 8,
+    1, 3, 1, 3, 1,
+    8, 8, 7,
+    1, 3, 1, 4,
+    8, 8,
+    2, 2, 4, 4, 4,
+    8, 8,
+    8, 8,
+    4, 12
+    };
+ 
+ // crotchet = 190, note delay = 158ms
+ double noteDelay = 1000.0 * 60.0/190.0 / 2 /4;
+ for (int i=0; i<44; i++) {
+  int thisDuration = noteDelay * noteDurations[i];
+  if(melody[i] == 0)
+    delay(thisDuration);
+  else
+    buzzer.tone(8, melody[i], thisDuration);
+
+  // delay to differentiate between notes
+  delay(thisDuration);
+  buzzer.noTone(8);
+ }
 }
