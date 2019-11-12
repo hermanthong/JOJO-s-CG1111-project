@@ -54,7 +54,7 @@ void loop() {
   if (sensorState != S1_OUT_S2_OUT){
     motor1.stop();
     motor2.stop();
-    moveBackward(AVOID_WALL);
+    delay(DELAY_TIME);    
     colorChallenge();
   }
   
@@ -153,20 +153,20 @@ void colorChallenge() {
   //        $ for error.
   if (r+g+b>500*3) {
     color = '$';
-  } else if (r>300 && b<210) {
-    if (g>180 && b<210 && r>360)
+  } else if (r>330) {
+    if (r>365) //g>180 && b<210 && r>360)
       color = 'Y';
-    else if (g<=160)
+    else if (g<=160 && b<210)
       color = 'R';
-  } else if (r>=240) {
+  } else /*if (r>=240)*/{
     if (g>190 && b>238)
       color = 'B';
     else if (g>160 && b<200)
       color = 'G';
-    else
+    else if (b>200)
       color = 'P';
-  } else {
-    color = 'X';
+    else 
+      color = 'X';
   }
   
   // INSTRUCTIONS FOR EACH COLOR
@@ -228,7 +228,7 @@ void soundChallenge() {
   lowVal /= 10;
   highVal /= 10;
   
-  if (lowVal >= 500){ // for low freq
+  if (lowVal >= 600){ // for low freq
     turnLeft(FULL_LEFT);
   }
   else if(highVal >= 100) { // for high freq
